@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Meetup Flowchart</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      padding: 40px;
+      background: #ffffff;
+      font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+    }
+    #container {
+      background: #ffffff;
+      padding: 30px;
+      border-radius: 20px;
+      display: inline-block;
+    }
+    .mermaid {
+      display: flex;
+      justify-content: center;
+    }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+</head>
+<body>
+  <div id="container">
+    <div class="mermaid">
+flowchart TD
+    A([User visits App]) --> B{Authenticated?}
+    B -- No --> C["Login / Register Page<br/>(Clerk Auth)"]
+    C --> D["Clerk issues Session Token"]
+    D --> B
+    B -- Yes --> E["Dashboard"]
+    E --> F{User Action}
+    F --> G["Create Meeting"]
+    F --> H["Join Meeting via Link"]
+    F --> I["View Sessions"]
+    F --> J["Pricing / Upgrade"]
+    G --> K["Meeting Room"]
+    H --> K
+    I --> L["Sessions Page<br/>Chat, Participant History & AI Summarize"]
+    L --> M["AI Meeting Summary<br/>(Whisper Speech-to-Text & GPT Summarization)"]
+    J --> N["Upgrade to Premium Plan"]
+
+    classDef startNode fill:#e0e7ff,stroke:#4338ca,stroke-width:2.5px,color:#1e1b4b,font-weight:600;
+    classDef decisionNode fill:#fef3c7,stroke:#d97706,stroke-width:2.5px,color:#78350f,font-weight:600;
+    classDef processNode fill:#f1f5f9,stroke:#475569,stroke-width:2px,color:#0f172a,font-weight:500;
+    classDef meetingNode fill:#dcfce7,stroke:#16a34a,stroke-width:2.5px,color:#14532d,font-weight:600;
+    classDef summaryNode fill:#fae8ff,stroke:#a855f7,stroke-width:2.5px,color:#581c87,font-weight:600;
+
+    class A startNode;
+    class B,F decisionNode;
+    class C,D,E,G,H,I,J,N processNode;
+    class K meetingNode;
+    class L,M summaryNode;
+    </div>
+  </div>
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'base',
+      themeVariables: {
+        fontSize: '15px',
+        fontFamily: 'Segoe UI, Arial, sans-serif'
+      },
+      flowchart: {
+        curve: 'basis',
+        nodeSpacing: 45,
+        rankSpacing: 45
+      }
+    });
+  </script>
+</body>
+</html>
