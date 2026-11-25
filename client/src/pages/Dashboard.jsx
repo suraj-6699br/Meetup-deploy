@@ -76,7 +76,8 @@ const Dashboard = () => {
     await api.get(`/api/meetings/${cleanId}`, {headers: { Authorization: `Bearer ${token}`,}})
     navigate(`/meeting/${cleanId}`);
    } catch (error) {
-    toast.error("Meeting not found. Check the ID and try again.");
+    const errorMsg = error.response?.data?.error || "Meeting not found. Check the ID and try again.";
+    toast.error(errorMsg);
    }
   }
 
