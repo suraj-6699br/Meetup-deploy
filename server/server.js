@@ -18,8 +18,30 @@ const server = http.createServer(app)
 await initDB()
 mkdirSync("uploads/recordings", { recursive: true });
 
-const allowedOrigins = process.env.ORIGINS.split(",")
-app.use(cors({origin: allowedOrigins, credentials: true}))
+const rawOrigins = (process.env.ORIGINS || "http://localhost:5173,http://localhost:3000")
+    .split(",")
+    .map((o) => o.trim().replace(/\/$/, ""))
+    .filter(Boolean);
+
+const isOriginAllowed = (origin) => {
+    if (!origin) return true;
+    const clean = origin.replace(/\/$/, "");
+    return rawOrigins.includes(clean) || clean.endsWith(".onrender.com");
+};
+
+const corsOptions = {
+    origin: (origin, callback) => {
+        if (isOriginAllowed(origin)) {
+            callback(null, origin || true);
+        } else {
+            console.warn(`[CORS Blocked] Origin: ${origin}`);
+            callback(null, false);
+        }
+    },
+    credentials: true,
+};
+
+app.use(cors(corsOptions))
 app.use(cookieParser())
 
 
@@ -31,7 +53,7 @@ app.get("/", (req, res)=> res.send("API is Live!"))
 app.use("/api/meetings", meetingRouter)
 
 const io = new Server(server, {
-    cors: {origin: allowedOrigins, credentials: true}
+    cors: corsOptions,
 })
 
 setupSocketIO(io)
