@@ -1,4 +1,5 @@
 import { AssemblyAI } from "assemblyai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { sql } from "../config/db.js";
 import fs from "fs";
 
@@ -34,24 +35,23 @@ export const processRecording = async (req, res) => {
         // 3. Process transcription & summary asynchronously in background
         (async () => {
             try {
-                const apiKey = process.env.ASSEMBLYAI_API_KEY;
-                if (!apiKey) {
-                    console.error("ASSEMBLYAI_API_KEY is not configured in server/.env");
+                const assemblyApiKey = process.env.ASSEMBLYAI_API_KEY;
+                if (!assemblyApiKey) {
+                    console.error("[Recording] ASSEMBLYAI_API_KEY is not configured in server environment");
                     await sql`UPDATE meetings SET recording_status = 'failed' WHERE id = ${meeting.id}`;
                     return;
                 }
 
-                const client = new AssemblyAI({ apiKey });
+                const client = new AssemblyAI({ apiKey: assemblyApiKey });
 
-                console.log(`[Recording] Starting AssemblyAI transcription for meeting ${meetingId}...`);
+                console.log(`[Recording] Starting AssemblyAI transcription with automatic language detection for meeting ${meetingId}...`);
+                
+                // Transcription with automatic multi-language detection (English, Hindi, Spanish, etc.) & speaker identification
                 const transcript = await client.transcripts.transcribe({
                     audio: audioFile.path,
-                    language_code: "en",
+                    language_detection: true, // Automatically detects the spoken language
                     speaker_labels: true,
                     auto_punctuation: true,
-                    summarization: true,
-                    summary_model: "informative",
-                    summary_type: "bullets",
                 });
 
                 if (transcript.status === "error") {
@@ -70,7 +70,56 @@ export const processRecording = async (req, res) => {
                     transcriptText = transcript.text || "No speech detected";
                 }
 
-                const summaryText = transcript.summary || (transcriptText ? `Summary:\n${transcriptText.slice(0, 300)}...` : "No summary available.");
+                console.log(`[Recording] Transcription complete (${transcriptText.length} chars). Detected language: ${transcript.language_code || 'auto'}`);
+
+                // --- Generate Structured Meeting Summary with Google Gemini ---
+                let summaryText = "";
+                const geminiApiKey = process.env.GEMINI_API_KEY;
+
+                if (geminiApiKey && transcriptText && transcriptText.length > 20) {
+                    try {
+                        console.log(`[Recording] Generating summary using Google Gemini (gemini-1.5-flash)...`);
+                        const genAI = new GoogleGenerativeAI(geminiApiKey);
+                        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+                        const prompt = `You are an expert AI meeting assistant. Analyze the following meeting transcript (which may be in English, Hindi, Spanish, or multilingual) and provide a professional, structured executive meeting summary in English.
+
+Format your response cleanly with these exact sections:
+
+## 📌 Executive Overview
+(A concise 2-3 sentence overview of what the meeting was about)
+
+## 🎯 Key Topics Discussed
+(Bullet points covering the main themes, discussions, and ideas)
+
+## ✅ Decisions Made
+(Bullet points of any agreements, finalized plans, or conclusions reached. If none, write "No formal decisions were finalized.")
+
+## 📋 Action Items & Next Steps
+(Bullet points with clear tasks, assignees if mentioned, and next steps. If none, write "No action items assigned.")
+
+Meeting Transcript:
+"""
+${transcriptText}
+"""`;
+
+                        const result = await model.generateContent(prompt);
+                        summaryText = result.response.text();
+                        console.log(`[Recording] ✅ Gemini summary generated successfully!`);
+                    } catch (geminiErr) {
+                        console.error("[Recording] Gemini summarization error:", geminiErr.message);
+                        summaryText = `Executive Overview:\n${transcriptText.slice(0, 300)}...\n\n(Note: An error occurred with Gemini summarization. Check your GEMINI_API_KEY quota/setup.)`;
+                    }
+                } else {
+                    if (!geminiApiKey) {
+                        console.warn("[Recording] GEMINI_API_KEY is not set. Add GEMINI_API_KEY to enable Gemini summaries.");
+                        summaryText = transcriptText && transcriptText.length > 20
+                            ? `Meeting Summary:\n${transcriptText.slice(0, 300)}...\n\n(Tip: Add GEMINI_API_KEY to your Render environment variables to generate full Gemini AI meeting summaries with action items and key decisions.)`
+                            : "No speech detected in this meeting.";
+                    } else {
+                        summaryText = "No speech detected to summarize.";
+                    }
+                }
 
                 await sql`
                     UPDATE meetings
@@ -80,10 +129,10 @@ export const processRecording = async (req, res) => {
                         updated_at = NOW()
                     WHERE id = ${meeting.id}
                 `;
-                console.log(`[Recording] ✅ Transcription and summary saved for meeting ${meetingId}`);
+                console.log(`[Recording] ✅ Full transcription and Gemini summary saved to database for meeting ${meetingId}`);
 
             } catch (err) {
-                console.error("[Recording] Transcription failed:", err);
+                console.error("[Recording] Processing failed:", err);
                 await sql`UPDATE meetings SET recording_status = 'failed', updated_at = NOW() WHERE id = ${meeting.id}`;
             } finally {
                 // Delete temporary audio file from disk

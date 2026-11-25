@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@clerk/express": "^2.1.61",
+    "@google/generative-ai": "^0.24.1",
     "@neondatabase/serverless": "^1.1.0",
     "assemblyai": "^4.43.4",
     "cookie-parser": "^1.4.7",
