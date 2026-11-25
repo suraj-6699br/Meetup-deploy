@@ -135,28 +135,17 @@ DELETE temp audio file from disk  ← File removed immediately
 
 ## 🔧 APIs Required
 
-### AssemblyAI — One API Key Does Everything
-
-> [!IMPORTANT]
-> AssemblyAI replaces **both** Google Cloud STT and Gemini. One API key, one SDK, one package. No service account JSON file needed.
-
+### 1. AssemblyAI (Audio Transcription with Multi-Language Detection)
 - **Package:** `assemblyai` (official Node.js SDK)
-- **STT:** Converts WebM/Opus audio → English transcript, with speaker labels (who said what)
-- **Summarization:** Built-in `lemur.task()` — sends transcript to an LLM and returns a structured meeting summary
-- **WebM support:** ✅ Natively supported, no conversion needed
-- **Free tier:** \$50 free credits on signup — easily covers hundreds of meeting transcriptions
-- **API Key:** Get at → [https://www.assemblyai.com](https://www.assemblyai.com) (sign up → Dashboard → API Key)
+- **STT:** Converts WebM/Opus audio → text with speaker labels (`Speaker A`, `Speaker B`, etc.).
+- **Automatic Language Detection:** `language_detection: true` auto-detects English, Hindi, Spanish, and 99+ other languages.
+- **API Key:** `ASSEMBLYAI_API_KEY` (Free \$50 credit from [assemblyai.com](https://www.assemblyai.com))
 
-#### Comparison vs Original Plan
-
-| | ~~Google Cloud STT~~ | AssemblyAI ✅ |
-|---|---|---|
-| Setup | Service account JSON file + Cloud project | Just an API key |
-| Packages needed | `@google-cloud/speech` + `@google/generative-ai` | `assemblyai` only |
-| Speaker labels | Manual config | Built-in |
-| Summarization | Need separate Gemini API | Built-in LeMUR |
-| Free tier | 60 min/month | \$50 credits (~500+ meetings) |
-| Complexity | High | Low |
+### 2. Google Gemini (AI Meeting Summarization)
+- **Package:** `@google/generative-ai`
+- **Model:** `gemini-1.5-flash`
+- **Output:** Professional executive overview, key topics discussed, decisions made, and action items in structured bullet points.
+- **API Key:** `GEMINI_API_KEY` (Free from [aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey))
 
 ---
 
