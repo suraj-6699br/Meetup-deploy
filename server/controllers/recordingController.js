@@ -35,7 +35,7 @@ export const processRecording = async (req, res) => {
         // 3. Process transcription & summary asynchronously in background
         (async () => {
             try {
-                const assemblyApiKey = process.env.ASSEMBLYAI_API_KEY;
+                const assemblyApiKey = (process.env.ASSEMBLYAI_API_KEY || "").replace(/['"]/g, "").trim();
                 if (!assemblyApiKey) {
                     console.error("[Recording] ASSEMBLYAI_API_KEY is not configured in server environment");
                     await sql`UPDATE meetings SET recording_status = 'failed' WHERE id = ${meeting.id}`;
@@ -74,7 +74,7 @@ export const processRecording = async (req, res) => {
 
                 // --- Generate Structured Meeting Summary with Google Gemini ---
                 let summaryText = "";
-                const geminiApiKey = process.env.GEMINI_API_KEY;
+                const geminiApiKey = (process.env.GEMINI_API_KEY || "").replace(/['"]/g, "").trim();
 
                 if (geminiApiKey && transcriptText && transcriptText.length > 20) {
                     try {
