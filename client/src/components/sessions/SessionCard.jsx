@@ -1,4 +1,4 @@
-import { CalendarIcon, MessageSquareIcon, UsersIcon, SparklesIcon, Loader2Icon } from 'lucide-react'
+import { CalendarIcon, MessageSquareIcon, UsersIcon, SparklesIcon, Loader2Icon, MusicIcon } from 'lucide-react'
 import React from 'react'
 
 const SessionCard = ({ session, onOpenDetails, onRejoin }) => {
@@ -11,11 +11,16 @@ const SessionCard = ({ session, onOpenDetails, onRejoin }) => {
         <div className="space-y-3">
 
             <div className='flex items-center justify-between'>
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5 flex-wrap">
                     <span className='text-xs font-mono text-slate-500 font-medium bg-slate-500/5 px-2.5 py-1 rounded-md'>ID: {session.meetingId}</span>
                     {session.recordingStatus === 'done' && (
                         <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full border border-indigo-200/60">
                             <SparklesIcon className="w-2.5 h-2.5" /> AI Summary
+                        </span>
+                    )}
+                    {session.isHost && session.recordingUrl && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full border border-emerald-200/60">
+                            <MusicIcon className="w-2.5 h-2.5" /> MP3 Audio
                         </span>
                     )}
                     {session.recordingStatus === 'processing' && (

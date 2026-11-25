@@ -31,6 +31,7 @@ export async function initDB() {
                 transcript TEXT,
                 summary TEXT,
                 recording_status VARCHAR(20) DEFAULT 'none',
+                recording_url TEXT,
                 created_at TIMESTAMPTZ DEFAULT NOW(),
                 updated_at TIMESTAMPTZ DEFAULT NOW()
             );
@@ -40,7 +41,8 @@ export async function initDB() {
             ALTER TABLE meetings
             ADD COLUMN IF NOT EXISTS transcript TEXT,
             ADD COLUMN IF NOT EXISTS summary TEXT,
-            ADD COLUMN IF NOT EXISTS recording_status VARCHAR(20) DEFAULT 'none';
+            ADD COLUMN IF NOT EXISTS recording_status VARCHAR(20) DEFAULT 'none',
+            ADD COLUMN IF NOT EXISTS recording_url TEXT;
         `;
 
         await sql`

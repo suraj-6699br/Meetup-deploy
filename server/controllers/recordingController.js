@@ -1,7 +1,35 @@
 import { AssemblyAI } from "assemblyai";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { Files } from "files-sdk";
+import { neon } from "files-sdk/neon";
+import ffmpeg from "fluent-ffmpeg";
+import ffmpegStatic from "ffmpeg-static";
 import { sql } from "../config/db.js";
 import fs from "fs";
+import path from "path";
+
+// Configure ffmpeg static binary
+if (ffmpegStatic) {
+    ffmpeg.setFfmpegPath(ffmpegStatic);
+}
+
+// Convert audio (WebM) to MP3 format
+const convertToMp3 = (inputPath, outputPath) => {
+    return new Promise((resolve, reject) => {
+        ffmpeg(inputPath)
+            .toFormat("mp3")
+            .audioBitrate(128)
+            .save(outputPath)
+            .on("end", () => {
+                console.log(`[Recording] Converted audio to MP3 successfully: ${outputPath}`);
+                resolve(outputPath);
+            })
+            .on("error", (err) => {
+                console.warn("[Recording] ffmpeg conversion warning/fallback:", err.message);
+                reject(err);
+            });
+    });
+};
 
 export const processRecording = async (req, res) => {
     const { meetingId } = req.params;
@@ -32,13 +60,51 @@ export const processRecording = async (req, res) => {
         await sql`UPDATE meetings SET recording_status = 'processing' WHERE id = ${meeting.id}`;
         res.status(202).json({ message: "Recording received, processing started" });
 
-        // 3. Process transcription & summary asynchronously in background
+        // 3. Process conversion, object storage upload, transcription & summary asynchronously in background
         (async () => {
+            const mp3Path = path.join("uploads/recordings", `recording-${meetingId}-${Date.now()}.mp3`);
+            let finalAudioPath = audioFile.path;
+
             try {
+                // Convert WebM to standard MP3
+                try {
+                    await convertToMp3(audioFile.path, mp3Path);
+                    if (fs.existsSync(mp3Path)) {
+                        finalAudioPath = mp3Path;
+                    }
+                } catch (convErr) {
+                    console.warn("[Recording] MP3 conversion failed, using original file:", convErr.message);
+                }
+
+                // --- 1. Upload MP3 to Neon Object Storage ---
+                let recordingUrl = null;
+                const s3Key = `recordings/meeting-${meetingId}-${Date.now()}.mp3`;
+
+                if (process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY) {
+                    try {
+                        console.log(`[Recording] Uploading audio to Neon Object Storage bucket "uploads"...`);
+                        const files = new Files({ adapter: neon({ bucket: "uploads" }) });
+                        const audioBuffer = fs.readFileSync(finalAudioPath);
+
+                        await files.upload(s3Key, audioBuffer, {
+                            contentType: "audio/mpeg",
+                        });
+
+                        // Generate 7-day presigned playback & download URL
+                        recordingUrl = await files.url(s3Key, { expiresIn: 7 * 24 * 3600 });
+                        console.log(`[Recording] ✅ Audio successfully saved to Neon Object Storage! Key: ${s3Key}`);
+                    } catch (storageErr) {
+                        console.error("[Recording] Neon Object Storage upload failed:", storageErr.message);
+                    }
+                } else {
+                    console.warn("[Recording] AWS_* credentials not found. Skipping Neon Object Storage upload.");
+                }
+
+                // --- 2. Transcribe Audio with AssemblyAI ---
                 const assemblyApiKey = (process.env.ASSEMBLYAI_API_KEY || "").replace(/['"]/g, "").trim();
                 if (!assemblyApiKey) {
                     console.error("[Recording] ASSEMBLYAI_API_KEY is not configured in server environment");
-                    await sql`UPDATE meetings SET recording_status = 'failed' WHERE id = ${meeting.id}`;
+                    await sql`UPDATE meetings SET recording_url = ${recordingUrl}, recording_status = 'failed' WHERE id = ${meeting.id}`;
                     return;
                 }
 
@@ -46,17 +112,17 @@ export const processRecording = async (req, res) => {
 
                 console.log(`[Recording] Starting AssemblyAI transcription with automatic language detection for meeting ${meetingId}...`);
                 
-                // Transcription with automatic multi-language detection (English, Hindi, Spanish, etc.) & speaker identification
+                // Transcription with automatic multi-language detection & speaker identification
                 const transcript = await client.transcripts.transcribe({
-                    audio: audioFile.path,
-                    language_detection: true, // Automatically detects the spoken language
+                    audio: finalAudioPath,
+                    language_detection: true, // Auto-detects English, Hindi, Spanish, etc.
                     speaker_labels: true,
                     auto_punctuation: true,
                 });
 
                 if (transcript.status === "error") {
                     console.error("[Recording] AssemblyAI error:", transcript.error);
-                    await sql`UPDATE meetings SET recording_status = 'failed' WHERE id = ${meeting.id}`;
+                    await sql`UPDATE meetings SET recording_url = ${recordingUrl}, recording_status = 'failed' WHERE id = ${meeting.id}`;
                     return;
                 }
 
@@ -72,7 +138,7 @@ export const processRecording = async (req, res) => {
 
                 console.log(`[Recording] Transcription complete (${transcriptText.length} chars). Detected language: ${transcript.language_code || 'auto'}`);
 
-                // --- Generate Structured Meeting Summary with Google Gemini ---
+                // --- 3. Generate Structured Meeting Summary with Google Gemini ---
                 let summaryText = "";
                 const geminiApiKey = (process.env.GEMINI_API_KEY || "").replace(/['"]/g, "").trim();
 
@@ -121,23 +187,28 @@ ${transcriptText}
                     }
                 }
 
+                // --- 4. Update Database ---
                 await sql`
                     UPDATE meetings
-                    SET transcript = ${transcriptText},
+                    SET recording_url = ${recordingUrl},
+                        transcript = ${transcriptText},
                         summary = ${summaryText},
                         recording_status = 'done',
                         updated_at = NOW()
                     WHERE id = ${meeting.id}
                 `;
-                console.log(`[Recording] ✅ Full transcription and Gemini summary saved to database for meeting ${meetingId}`);
+                console.log(`[Recording] ✅ Audio URL, transcription and Gemini summary saved to database for meeting ${meetingId}`);
 
             } catch (err) {
                 console.error("[Recording] Processing failed:", err);
                 await sql`UPDATE meetings SET recording_status = 'failed', updated_at = NOW() WHERE id = ${meeting.id}`;
             } finally {
-                // Delete temporary audio file from disk
+                // Delete temporary files from disk
                 if (fs.existsSync(audioFile.path)) {
                     fs.unlinkSync(audioFile.path);
+                }
+                if (fs.existsSync(mp3Path)) {
+                    fs.unlinkSync(mp3Path);
                 }
             }
         })();

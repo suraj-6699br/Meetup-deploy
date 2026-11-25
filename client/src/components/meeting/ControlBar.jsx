@@ -1,8 +1,8 @@
-import { CheckIcon, CopyIcon, MessageSquareIcon, MicIcon, MicOffIcon, PhoneOffIcon, UsersIcon, VideoIcon, VideoOffIcon } from 'lucide-react'
+import { CheckIcon, CopyIcon, MessageSquareIcon, MicIcon, MicOffIcon, PauseIcon, PhoneOffIcon, PlayIcon, UsersIcon, VideoIcon, VideoOffIcon } from 'lucide-react'
 import React, { useState } from 'react'
 import toast from 'react-hot-toast'
 
-const ControlBar = ({roomId, audioEnabled, videoEnabled, onToggleAudio, onToggleVideo, onToggleChat, onToggleParticipants, isChatOpen, isParticipantsOpen, unreadCount,participantCount, isHost, onLeave, onEndMeeting, onMuteAll}) => {
+const ControlBar = ({roomId, audioEnabled, videoEnabled, onToggleAudio, onToggleVideo, onToggleChat, onToggleParticipants, isChatOpen, isParticipantsOpen, unreadCount,participantCount, isHost, onLeave, onEndMeeting, onMuteAll, recordingState = "idle", recordingTime = "00:00", onStartRecording, onPauseRecording}) => {
 
     const [copied, setCopied] = useState(false)
 
@@ -82,6 +82,48 @@ const ControlBar = ({roomId, audioEnabled, videoEnabled, onToggleAudio, onToggle
                 >
                     <MicOffIcon className="w-5 h-5" />
                 </button>
+            )}
+
+            {/* Host Audio Recording Start / Pause / Resume Controls */}
+            {isHost && (
+                <>
+                    {recordingState === "idle" && (
+                        <button
+                            onClick={onStartRecording}
+                            className="p-3 px-3.5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 shadow-xs transition-all cursor-pointer flex items-center gap-1.5"
+                            title="Start Meeting Recording"
+                        >
+                            <span className="w-2.5 h-2.5 rounded-full bg-rose-500"></span>
+                            <span className="text-xs font-semibold hidden md:inline">Record</span>
+                        </button>
+                    )}
+
+                    {recordingState === "recording" && (
+                        <button
+                            onClick={onPauseRecording}
+                            className="p-3 px-3.5 rounded-2xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 shadow-xs transition-all cursor-pointer flex items-center gap-2"
+                            title="Click to Pause Recording"
+                        >
+                            <span className="relative flex h-2.5 w-2.5">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-600"></span>
+                            </span>
+                            <span className="text-xs font-bold font-mono tracking-wider">REC {recordingTime}</span>
+                            <PauseIcon className="w-3.5 h-3.5 ml-0.5 text-rose-600" />
+                        </button>
+                    )}
+
+                    {recordingState === "paused" && (
+                        <button
+                            onClick={onStartRecording}
+                            className="p-3 px-3.5 rounded-2xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 shadow-xs transition-all cursor-pointer flex items-center gap-1.5"
+                            title="Click to Resume Recording"
+                        >
+                            <PlayIcon className="w-3.5 h-3.5 text-amber-700" />
+                            <span className="text-xs font-bold font-mono">PAUSED {recordingTime}</span>
+                        </button>
+                    )}
+                </>
             )}
 
             {/* Leave / End Meeting Button */}

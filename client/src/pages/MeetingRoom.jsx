@@ -79,7 +79,14 @@ const MeetingRoom = () => {
   const isHost = Boolean(userdata?.id && hostId && hostId.toString() === userdata.id.toString())
 
   // Initialize Audio Recording for transcription & AI summary (host only)
-  const { addStreamToMix, stopAndUpload } = useRecording(meetingId, isHost);
+  const {
+    recordingState,
+    recordingTime,
+    startRecording,
+    pauseRecording,
+    addStreamToMix,
+    stopAndUpload,
+  } = useRecording(meetingId, isHost);
 
   useEffect(() => {
     if (isHost && localStream) {
@@ -184,6 +191,10 @@ const MeetingRoom = () => {
           onLeave={handleLeave}
           onEndMeeting={handleEndMeeting}
           onMuteAll={muteAll}
+          recordingState={recordingState}
+          recordingTime={recordingTime}
+          onStartRecording={startRecording}
+          onPauseRecording={pauseRecording}
           />
 
           {/* In-Meeting Ready / Invite Card */}

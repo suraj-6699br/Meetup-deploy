@@ -120,7 +120,7 @@ export const getUserSessions = async (req, res)=>{
         // Fetch meetings where user is host OR listed in participants
         const meetings = await sql`
             SELECT DISTINCT m.id, m.meeting_id, m.title, m.status, m.created_at, m.ended_at,
-                   m.transcript, m.summary, m.recording_status,
+                   m.transcript, m.summary, m.recording_status, m.recording_url,
                    m.host_id, u.name as host_name, u.email as host_email
             FROM meetings m
             JOIN users u ON m.host_id = u.id
@@ -155,6 +155,8 @@ export const getUserSessions = async (req, res)=>{
                 transcript: m.transcript || null,
                 summary: m.summary || null,
                 recordingStatus: m.recording_status || "none",
+                recordingUrl: m.host_id === userId ? (m.recording_url || null) : null,
+                isHost: m.host_id === userId,
                 host: {
                     id: m.host_id,
                     name: m.host_name,
@@ -229,6 +231,7 @@ export const getSessionDetails = async (req, res)=>{
             WHERE meeting_id = ${m.id}
             ORDER BY timestamp ASC`;
 
+        const isUserHost = m.host_id === userId;
         const formattedMeeting = {
             id: m.id,
             meetingId: m.meeting_id,
@@ -239,6 +242,8 @@ export const getSessionDetails = async (req, res)=>{
             transcript: m.transcript || null,
             summary: m.summary || null,
             recordingStatus: m.recording_status || "none",
+            recordingUrl: isUserHost ? (m.recording_url || null) : null,
+            isHost: isUserHost,
             host: {
                 id: m.host_user_id,
                 name: m.host_name,

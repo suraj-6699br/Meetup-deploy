@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { XIcon, SparklesIcon, FileTextIcon, MessageSquareIcon, UsersIcon } from 'lucide-react'
+import { XIcon, SparklesIcon, FileTextIcon, MessageSquareIcon, UsersIcon, DownloadIcon, MusicIcon } from 'lucide-react'
 import SessionChatTab from './SessionChatTab';
 import SessionParticipantsTab from './SessionParticipantsTab';
 import TranscriptTab from './TranscriptTab';
@@ -44,6 +44,39 @@ const SessionDetailModal = ({session, onClose}) => {
             <XIcon className="w-5 h-5" />
           </button>
         </div>
+
+        {/* Host Audio Recording & Download Bar (Host Only) */}
+        {session.isHost && session.recordingUrl && (
+          <div className="mx-6 my-3 p-4 bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 rounded-2xl border border-blue-200/70 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-3 w-full sm:w-auto">
+              <div className="w-10 h-10 rounded-xl bg-primary text-white flex items-center justify-center shrink-0 shadow-sm shadow-primary/30">
+                <MusicIcon className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-slate-800">Meeting Audio Recording</span>
+                  <span className="text-[10px] font-semibold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full uppercase">MP3</span>
+                </div>
+                <p className="text-[11px] text-slate-500 truncate">Stored in Neon Object Storage (Host Only)</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
+              <audio controls src={session.recordingUrl} className="h-9 max-w-64 w-full" preload="metadata" />
+              <a
+                href={session.recordingUrl}
+                download={`Meetup-${session.meetingId}.mp3`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm shrink-0 cursor-pointer"
+                title="Download MP3 Audio File"
+              >
+                <DownloadIcon className="w-3.5 h-3.5" />
+                <span>Download MP3</span>
+              </a>
+            </div>
+          </div>
+        )}
 
         {/* Tabs Bar */}
         <div className="flex border-b border-slate-100 px-6 bg-slate-50/50 overflow-x-auto">
