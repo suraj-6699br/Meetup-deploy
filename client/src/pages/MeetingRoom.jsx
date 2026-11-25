@@ -12,6 +12,8 @@ import { useAuth, useUser } from '@clerk/react'
 import api from '../config/api'
 import Loader from '../components/Loader'
 import { useRecording } from '../hooks/useRecording'
+import MeetingInviteModal from '../components/meeting/MeetingInviteModal'
+import { Share2Icon } from 'lucide-react'
 
 const MeetingRoom = () => {
   const {meetingId} = useParams()
@@ -34,6 +36,7 @@ const MeetingRoom = () => {
    const [meeting, setMeeting] = useState(null)
    const [loadingMeeting, setLoadingMeeting] = useState(true);
   const [isParticipantsOpen, setIsParticipantsOpen] = useState(false)
+  const [isInviteOpen, setIsInviteOpen] = useState(true)
 
   // Fetch meeting details to verify validity BEFORE enabling WebRTC camera access
   useEffect(()=>{
@@ -118,6 +121,17 @@ const MeetingRoom = () => {
               </h2>
               <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse"/>
           </div>
+
+          <div className="flex items-center gap-2">
+              <button
+                onClick={() => setIsInviteOpen((prev) => !prev)}
+                className="px-3.5 py-1.5 rounded-full bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30 text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-all shadow-xs"
+                title="Share Meeting Invite Link & ID"
+              >
+                <Share2Icon className="w-3.5 h-3.5" />
+                <span>Share Invite</span>
+              </button>
+          </div>
        </header>
 
        {/* Main Content Area (Video Grid + Side Panels) */}
@@ -170,6 +184,14 @@ const MeetingRoom = () => {
           onLeave={handleLeave}
           onEndMeeting={handleEndMeeting}
           onMuteAll={muteAll}
+          />
+
+          {/* In-Meeting Ready / Invite Card */}
+          <MeetingInviteModal
+            meetingId={meetingId}
+            isOpen={isInviteOpen}
+            onClose={() => setIsInviteOpen(false)}
+            participantCount={1 + remoteUsers.length}
           />
     </div>
   )
