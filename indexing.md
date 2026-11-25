@@ -1,6 +1,6 @@
-# 📋 Meetup — Project Index
+# 📋 Meetup — Complete Project Index & Architecture Guide
 
-> A full-stack, real-time peer-to-peer video calling application built with **React**, **Node.js**, **Socket.IO**, **WebRTC**, **Clerk Auth**, and **Neon PostgreSQL**.
+> A full-stack, real-time peer-to-peer video calling and meeting intelligence application built with **React 19**, **Node.js (Express 5)**, **Socket.IO**, **WebRTC**, **Clerk Auth**, **Neon PostgreSQL**, **AssemblyAI (Multilingual STT)**, and **Google Gemini 1.5 Flash (AI Summaries)**.
 
 ---
 
@@ -8,675 +8,445 @@
 
 1. [Project Overview](#1-project-overview)
 2. [Tech Stack](#2-tech-stack)
-3. [File Structure](#3-file-structure)
-4. [Architecture Overview](#4-architecture-overview)
-5. [How the App Works — End to End](#5-how-the-app-works--end-to-end)
-6. [Authentication (Clerk)](#6-authentication-clerk)
-7. [Database Schema](#7-database-schema)
-8. [REST API Routes](#8-rest-api-routes)
-9. [Socket.IO Signaling Events](#9-socketio-signaling-events)
-10. [WebRTC Flow](#10-webrtc-flow)
-11. [Client Pages](#11-client-pages)
-12. [Client Components](#12-client-components)
-13. [Custom Hooks](#13-custom-hooks)
-14. [Plan Limits & Business Logic](#14-plan-limits--business-logic)
+3. [File Structure & Complete File Catalog](#3-file-structure--complete-file-catalog)
+4. [Architecture & System Flow](#4-architecture--system-flow)
+5. [Authentication & Authorization](#5-authentication--authorization)
+6. [Database Schema (Neon PostgreSQL)](#6-database-schema-neon-postgresql)
+7. [REST API Endpoints](#7-rest-api-endpoints)
+8. [Socket.IO Signaling & Real-Time Events](#8-socketio-signaling--real-time-events)
+9. [WebRTC Audio/Video P2P Engine](#9-webrtc-audiovideo-p2p-engine)
+10. [AI Audio Recording, Multilingual Transcription & Gemini Summary Engine](#10-ai-audio-recording-multilingual-transcription--gemini-summary-engine)
+11. [Client Pages & Routing](#11-client-pages--routing)
+12. [Client Components Breakdown](#12-client-components-breakdown)
+13. [Custom React Hooks](#13-custom-react-hooks)
+14. [Plan Limits & Business Rules](#14-plan-limits--business-rules)
 15. [Environment Variables](#15-environment-variables)
-16. [Known Issues & Notes](#16-known-issues--notes)
+16. [Deployment Architecture](#16-deployment-architecture)
 
 ---
 
 ## 1. Project Overview
 
-**Meetup** is a full-stack video calling web app where:
+**Meetup** is an end-to-end video conferencing and collaborative meeting platform:
 
-- Users **register / login** via Clerk (OAuth or email/password)
-- Authenticated users can **create a meeting** — generates a shareable `abc-def-ghi` style ID
-- Other users can **join a meeting** by entering the ID
-- Inside a room, all participants connect **peer-to-peer via WebRTC** for video/audio
-- **Socket.IO** acts as the signaling server (relaying WebRTC offer / answer / ICE candidates)
-- **In-meeting chat** messages are broadcast via socket AND persisted to PostgreSQL
-- After a meeting ends, full **session history** (participants + chat transcript) is viewable
+- **Authentication**: Seamless Clerk OAuth (Google, Email) with synchronized user profiles in Neon PostgreSQL.
+- **Instant Meetings**: 1-click room creation generating clean `abc-def-ghi` room IDs.
+- **Invitation Workflow**: Instant share modal on Dashboard and in-room Google Meet-style floating invite card with 1-click Copy Link, Copy ID, and direct WhatsApp sharing.
+- **Peer-to-Peer Calls**: Low-latency video and audio streaming via native browser WebRTC with Google STUN servers.
+- **Host Controls**: Host can "Mute All" participants in one click, end meeting for all, or allow voluntary participant leave.
+- **Real-Time In-Meeting Chat**: Socket.IO room messaging automatically persisted into PostgreSQL `meeting_messages`.
+- **Audio Mixing & Processing**: Host browser mixes all audio tracks (local mic + remote peer streams) using Web Audio API (`AudioContext` + `MediaStreamDestination`) and records with `MediaRecorder` (`audio/webm;codecs=opus`).
+- **AI Meeting Intelligence**:
+  - Automatically transcribes meetings using **AssemblyAI** with multi-language detection (`language_detection: true`) and speaker diarization.
+  - Automatically generates structured meeting notes using **Google Gemini** (`gemini-1.5-flash`), formatting Executive Overview, Key Topics, Decisions Made, and Action Items.
+- **Historical Sessions**: Full session logs with participants, chat logs, transcripts, and AI executive summaries.
 
 ---
 
 ## 2. Tech Stack
 
-### Client (`/client`)
+### Frontend (`/client`)
 
 | Tool | Version | Purpose |
 |---|---|---|
-| React | 19.2.8 | UI framework |
-| Vite | 8.2.0 | Build tool & dev server |
-| React Router DOM | 7.18.2 | Client-side routing |
-| Clerk React | 6.14.3 | Auth UI + session hooks |
-| Axios | 1.19.0 | HTTP client (REST API calls) |
-| Socket.IO Client | 4.8.3 | Real-time signaling connection |
-| Tailwind CSS | 4.3.3 | Utility-first styling |
-| Lucide React | 1.31.0 | Icon library |
-| React Hot Toast | 2.6.0 | Toast notifications |
-| oxlint | 1.75.0 | Linter (Rust-based, fast) |
+| **React** | 19.2.8 | Declarative UI framework |
+| **Vite** | 8.2.0 | Next-gen lightning-fast bundler and dev server |
+| **React Router DOM** | 7.18.2 | Single-Page Application client routing |
+| **@clerk/react** | 6.14.3 | Authentication UI, session management, and JWT tokens |
+| **Axios** | 1.19.0 | HTTP client with automatic Clerk Bearer token interceptor |
+| **Socket.IO Client** | 4.8.3 | Real-time bidirectional WebRTC signaling and chat client |
+| **Tailwind CSS** | 4.3.3 | Utility-first styling with modern `@theme` styling |
+| **Lucide React** | 1.31.0 | High quality SVG icon suite |
+| **React Hot Toast** | 2.6.0 | Toast notification provider |
+| **oxlint** | 1.75.0 | High-performance Rust-based linter |
 
-### Server (`/server`)
+### Backend (`/server`)
 
 | Tool | Version | Purpose |
 |---|---|---|
-| Node.js | ≥ 20.9.0 | Runtime |
-| Express | 5.2.1 | HTTP server framework |
-| Socket.IO | 4.8.3 | WebSocket signaling server |
-| @clerk/express | 2.1.61 | Server-side auth middleware |
-| @neondatabase/serverless | 1.1.0 | Neon PostgreSQL driver (HTTP) |
-| dotenv | 17.4.2 | Environment variable loader |
-| cors | 2.8.6 | Cross-origin request handling |
-| cookie-parser | 1.4.7 | Cookie middleware |
-| nodemon | 3.1.14 | Dev auto-restart |
+| **Node.js** | ≥ 20.9.0 | Server-side JavaScript runtime |
+| **Express** | 5.2.1 | Minimalist HTTP web framework |
+| **Socket.IO** | 4.8.3 | Real-time WebSocket server for signaling & chat |
+| **@neondatabase/serverless**| 1.1.0 | High-performance serverless PostgreSQL client |
+| **@clerk/express** | 2.1.61 | Express authentication and JWT validation middleware |
+| **AssemblyAI** | 4.43.4 | AI speech-to-text with automatic multi-language detection |
+| **@google/generative-ai** | 0.24.1 | Google Gemini API SDK for structured summaries |
+| **Multer** | 2.5.0 | Multipart/form-data handler for audio uploads |
+| **dotenv** | 17.4.2 | Environment variable configuration |
+| **cors** | 2.8.6 | Cross-Origin Resource Sharing middleware |
+| **cookie-parser** | 1.4.7 | Cookie parsing middleware |
 
-### External Services
+### Cloud Infrastructure
 
-| Service | Role |
-|---|---|
-| **Clerk** | Authentication, user management, plan/subscription tracking |
-| **Neon PostgreSQL** | Serverless cloud database (ap-southeast-1 / Singapore) |
-| **Google STUN Servers** | ICE candidate resolution for WebRTC NAT traversal |
+| Provider | Service | Usage |
+|---|---|---|
+| **Render** | Web Service (Docker / Node) | Backend API & WebSocket server |
+| **Render** | Static Site | Vite React frontend hosting |
+| **Neon** | Serverless PostgreSQL | Relational DB for users, meetings, participants, messages |
+| **Clerk** | Auth Platform | Identity, Google SSO, JWT issuing, Webhooks |
+| **Google STUN** | `stun:stun.l.google.com:19302` | WebRTC NAT traversal & candidate discovery |
 
 ---
 
-## 3. File Structure
+## 3. File Structure & Complete File Catalog
 
 ```
 meetup/
-│
-├── client/                               # ⚛️  React Frontend (Vite)
+├── client/
 │   ├── public/
 │   │   ├── favicon.svg                   # App favicon
-│   │   ├── icons.svg                     # SVG icon sprite
-│   │   ├── layout_bg.png                 # Background image for layout
-│   │   ├── login_bg.png                  # Background image for login page
-│   │   └── logo.svg                      # App logo
-│   │
+│   │   ├── layout_bg.png                 # Background for dashboard / sessions
+│   │   ├── login_bg.png                  # Background for login / signup pages
+│   │   └── logo.svg                      # MeetUp logo
 │   ├── src/
 │   │   ├── assets/
-│   │   │   └── asset.js                  # Dummy/fallback data constants
-│   │   │
+│   │   │   └── asset.js                  # Fallback stubs & mock datasets
 │   │   ├── components/
-│   │   │   ├── meeting/                  # 🎥 In-Meeting UI Components
-│   │   │   │   ├── ChatPanel.jsx         # Sliding chat drawer (right panel)
-│   │   │   │   ├── ControlBar.jsx        # Bottom toolbar: mic/cam/chat/leave
-│   │   │   │   ├── ParticipantList.jsx   # Sidebar list of participants
-│   │   │   │   ├── VideoGrid.jsx         # Responsive grid layout for video tiles
-│   │   │   │   └── VideoTile.jsx         # Single participant video tile + name badge
-│   │   │   │
-│   │   │   ├── sessions/                 # 📋 Session History UI Components
-│   │   │   │   ├── EmptySessions.jsx     # Empty state illustration
-│   │   │   │   ├── SessionCard.jsx       # Summary card per session
-│   │   │   │   ├── SessionChatTab.jsx    # Chat transcript tab view
-│   │   │   │   ├── SessionDetailModal.jsx# Full-screen detail modal with tabs
-│   │   │   │   └── SessionParticipantsTab.jsx # Participant table with join time
-│   │   │   │
-│   │   │   ├── Footer.jsx                # Bottom footer bar
-│   │   │   ├── Loader.jsx                # Full-screen centered spinner
-│   │   │   ├── Navbar.jsx                # Top nav with user avatar + sign-out
-│   │   │   ├── Protectedlayout.jsx       # Layout wrapper (Navbar + Footer)
-│   │   │   └── ProtectedRoute.jsx        # Clerk auth guard for private routes
-│   │   │
+│   │   │   ├── meeting/
+│   │   │   │   ├── ChatPanel.jsx         # In-room sliding chat panel
+│   │   │   │   ├── ControlBar.jsx        # Bottom meeting bar (audio, video, mute-all, end)
+│   │   │   │   ├── MeetingInviteModal.jsx# "Your meeting is ready" invite card
+│   │   │   │   ├── ParticipantList.jsx   # In-room participant roster drawer
+│   │   │   │   ├── VideoGrid.jsx         # Responsive CSS grid for video tiles
+│   │   │   │   └── VideoTile.jsx         # Individual video player & avatar placeholder
+│   │   │   ├── sessions/
+│   │   │   │   ├── EmptySessions.jsx     # Zero-state placeholder for sessions
+│   │   │   │   ├── SessionCard.jsx       # Card item on sessions overview
+│   │   │   │   ├── SessionChatTab.jsx    # Chat history tab inside session modal
+│   │   │   │   ├── SessionDetailModal.jsx# 4-tab details modal for past meetings
+│   │   │   │   ├── SessionParticipantsTab.jsx # Participant roster tab
+│   │   │   │   ├── SummaryTab.jsx        # Google Gemini AI summary tab
+│   │   │   │   └── TranscriptTab.jsx     # AssemblyAI full transcript tab
+│   │   │   ├── Footer.jsx                # Global application footer
+│   │   │   ├── Loader.jsx                # Centered loading spinner
+│   │   │   ├── Navbar.jsx                # Global navigation bar with Clerk UserButton
+│   │   │   ├── Protectedlayout.jsx       # Layout shell for authenticated dashboard
+│   │   │   └── ProtectedRoute.jsx        # Route guard checking Clerk auth status
 │   │   ├── config/
-│   │   │   ├── api.js                    # Axios instance + Clerk JWT interceptor
-│   │   │   └── socket.js                 # Socket.IO client singleton (autoConnect: false)
-│   │   │
+│   │   │   ├── api.js                    # Axios instance with Clerk Bearer interceptor
+│   │   │   └── socket.js                 # Socket.IO client singleton
 │   │   ├── hooks/
-│   │   │   ├── useWebRTC.js              # All WebRTC + socket signaling logic
-│   │   │   └── useChat.js                # Chat send/receive + unread count tracking
-│   │   │
+│   │   │   ├── useChat.js                # Chat hook managing messages & unread counts
+│   │   │   ├── useRecording.js           # Web Audio API mixer & audio uploader
+│   │   │   └── useWebRTC.js              # WebRTC peer connection manager
 │   │   ├── pages/
-│   │   │   ├── Dashboard.jsx             # Home: create/join meeting + plan stats
-│   │   │   ├── Login.jsx                 # Clerk-powered login/register page
-│   │   │   ├── MeetingRoom.jsx           # Full video call room interface
-│   │   │   ├── Pricing.jsx               # Plan comparison + upgrade page
-│   │   │   └── Sessions.jsx              # Past meeting history viewer
-│   │   │
-│   │   ├── App.jsx                       # Route definitions (React Router)
-│   │   ├── main.jsx                      # App entry: ClerkProvider + BrowserRouter
-│   │   └── index.css                     # Global styles + Tailwind directives
-│   │
-│   ├── .env                              # VITE_BASE_URL, VITE_CLERK_PUBLISHABLE_KEY
-│   ├── .gitignore
-│   ├── .oxlintrc.json                    # Linter config
-│   ├── index.html                        # HTML entry point
-│   ├── package.json                      # Client dependencies
-│   ├── README.md
-│   └── vite.config.js                    # Vite + Tailwind plugin config
+│   │   │   ├── Dashboard.jsx             # Meeting creation, code joining, invite modal
+│   │   │   ├── Login.jsx                 # Clerk SignIn / SignUp container
+│   │   │   ├── MeetingRoom.jsx           # Core WebRTC video calling experience
+│   │   │   ├── Pricing.jsx               # Clerk PricingTable component
+│   │   │   └── Sessions.jsx              # Meeting archive with AI summary views
+│   │   ├── App.jsx                       # Route registry
+│   │   ├── index.css                     # Tailwind CSS v4 styling & theme setup
+│   │   └── main.jsx                      # React 19 root bootstrap with ClerkProvider
+│   ├── .env                              # Frontend environment variables
+│   ├── index.html                        # HTML5 document root
+│   ├── package.json                      # Frontend dependencies
+│   └── vite.config.js                    # Vite bundler configuration
 │
-├── server/                               # 🟢 Node.js/Express Backend
+├── server/
 │   ├── config/
-│   │   └── db.js                         # Neon DB connection + CREATE TABLE init
-│   │
+│   │   └── db.js                         # Neon PostgreSQL connection & table migrations
 │   ├── controllers/
-│   │   ├── meetingController.js          # REST API logic (CRUD for meetings/sessions)
-│   │   └── webhookController.js          # Clerk webhook → user upsert/delete in DB
-│   │
+│   │   ├── meetingController.js          # Meeting CRUD, stats, sessions, verification
+│   │   ├── recordingController.js        # AssemblyAI transcription & Gemini summarization
+│   │   └── webhookController.js          # Clerk user sync webhook endpoint
 │   ├── middleware/
-│   │   └── auth.js                       # Clerk JWT verification + plan sync middleware
-│   │
+│   │   └── auth.js                       # JWT verification & automatic user upserting
 │   ├── routes/
-│   │   └── meetingRoutes.js              # Express router for /api/meetings
-│   │
-│   ├── socket.js                         # Socket.IO event handlers (signaling + chat)
-│   ├── server.js                         # App entry point (Express + Socket.IO setup)
-│   ├── .env                              # DATABASE_URL, CLERK keys, ORIGINS
-│   ├── .gitignore
-│   └── package.json                      # Server dependencies
+│   │   └── meetingRoutes.js              # Express meeting API routes & Multer upload
+│   ├── uploads/
+│   │   └── recordings/                   # Temporary directory for uploaded audio files
+│   ├── .env                              # Server secrets & API keys
+│   ├── package.json                      # Server dependencies & engines
+│   ├── server.js                         # Express entry point, CORS, and HTTP server
+│   └── socket.js                         # WebRTC signaling, mute-all, chat broadcasting
 │
-├── assets/
-│   └── flowchart.html                    # Architecture flowchart (HTML)
-│
-├── CONTEXT.md                            # Detailed project context documentation
-├── indexing.md                           # 📄 This file — project index
-└── .gitignore
+├── indexing.md                           # Comprehensive codebase documentation (this file)
+└── programing.md                         # Architecture logs, feature specs & roadmaps
 ```
 
 ---
 
-## 4. Architecture Overview
+## 4. Architecture & System Flow
 
-```
-Browser (React Client)
-     │
-     ├── REST API (Axios) ──────────────► Express Server (:3000)
-     │        Bearer: Clerk JWT                   │
-     │                                     ┌──────┴───────┐
-     │                                  auth.js      meetingController.js
-     │                                  middleware          │
-     │                                     └──────┬───────┘
-     │                                            │
-     │                                    Neon PostgreSQL
-     │                                (users, meetings,
-     │                                 participants, messages)
-     │
-     ├── Socket.IO ──────────────────────► Socket.IO Server
-     │   (signaling: offer/answer/ICE,      socket.js
-     │    chat, room events)                     │
-     │                                    Neon PostgreSQL
-     │                                 (messages persisted)
-     │
-     └── WebRTC P2P ◄────────────────────► Other Browsers
-         (video/audio streams)          (direct, no server relay)
-         via Google STUN servers
-```
-
-> **Key principle:** The server **never handles video/audio data**. It only relays WebRTC signaling messages. Once WebRTC is established, media streams flow peer-to-peer directly between browsers.
-
----
-
-## 5. How the App Works — End to End
-
-### 5.1 App Startup
-
-1. `main.jsx` bootstraps the app:
-   - Wraps app in `<ClerkProvider>` for auth context
-   - Wraps in `<BrowserRouter>` for routing
-   - Mounts `<App />` with all routes
-2. `server.js` runs on startup:
-   - Calls `initDB()` → creates all 4 database tables if they don't exist
-   - Sets up CORS, cookie-parser, Clerk middleware
-   - Mounts Express routes + Socket.IO server
-
----
-
-### 5.2 Creating a Meeting
-
-```
-Dashboard
-  → User clicks "Start Meeting"
-  → POST /api/meetings (with Clerk JWT)
-  → auth.js: verifies JWT, syncs plan in DB
-  → createMeeting():
-      • Checks monthly meeting count (Free: max 30)
-      • Generates unique abc-def-ghi ID
-      • INSERT into meetings table
-      • INSERT host into meeting_participants
-      • Returns { meetingId }
-  → Client navigates to /meeting/:meetingId
+```mermaid
+flowchart TD
+    User([User in Browser]) -->|1. Authenticates| Clerk[Clerk Auth Provider]
+    User -->|2. HTTP API Requests| Express[Node.js Express Server]
+    User -->|3. Socket Signaling| SocketIO[Socket.IO Server]
+    User <==>|4. P2P Audio/Video Mesh| Peer([Remote Participants])
+    
+    Express -->|5. SQL Queries| Neon[(Neon PostgreSQL)]
+    Express -->|6. Speech-to-Text| AssemblyAI[AssemblyAI API]
+    Express -->|7. Meeting Summary| Gemini[Google Gemini 1.5 Flash]
+    
+    Clerk -->|Webhook user.created/updated| Express
 ```
 
 ---
 
-### 5.3 Joining a Meeting Room
+## 5. Authentication & Authorization
 
-```
-MeetingRoom.jsx mounts
-  → GET /api/meetings/:meetingId (verify meeting is active)
-  → useWebRTC hook initializes:
-      • getUserMedia (video + audio; falls back to audio-only)
-      • socket.connect()
-      • emit "join-room" { roomId, user, audioEnabled, videoEnabled }
-  → server socket.js:
-      • Verifies meeting in DB, checks status !== "ended"
-      • Checks room capacity (10 Free / 100 Premium)
-      • Adds participant to rooms Map + DB
-      • Emits "all-users" (existing participants) → to newcomer
-      • Emits "user-joined" → to everyone else in room
-  → Newcomer creates RTCPeerConnection for each existing user:
-      • createOffer → setLocalDescription → emit "offer"
-      • Server relays offer to target peer
-      • Target: setRemoteDescription → createAnswer → setLocalDescription → emit "answer"
-      • Server relays answer back
-      • Both sides exchange ICE candidates via server
-      • ✅ P2P video/audio stream established
+### Client Side
+- Managed by `@clerk/react`.
+- `main.jsx` wraps the application in `<ClerkProvider publishableKey={...}>`.
+- `ProtectedRoute.jsx` checks `useAuth().isSignedIn`; redirects unauthenticated requests to `/login`.
+- `client/src/config/api.js` attaches the fresh Clerk JWT token to every HTTP request via Axios request interceptor:
+  ```js
+  const token = await window.Clerk.session.getToken();
+  config.headers.Authorization = `Bearer ${token}`;
+  ```
+
+### Server Side
+- Handled by `server/middleware/auth.js` via `protect` middleware.
+- Extracts userId via `@clerk/express` `getAuth(req)`.
+- If user does not exist in Neon DB (e.g. webhook has not fired yet), fetches user profile from `clerkClient.users.getUser(userId)` and inserts them into `users` table automatically.
+- Sanitizes email uniqueness collisions by prefixing `userId` if needed.
+- Syncs user plan (`free` vs `premium`) on every authenticated call.
+
+---
+
+## 6. Database Schema (Neon PostgreSQL)
+
+```sql
+-- 1. Users Table
+CREATE TABLE IF NOT EXISTS users (
+    id VARCHAR(255) PRIMARY KEY,              -- Clerk user ID (e.g., user_2t...)
+    name VARCHAR(255) NOT NULL,
+    email VARCHAR(255) NOT NULL UNIQUE,
+    image VARCHAR(500),
+    plan VARCHAR(20) DEFAULT 'free',          -- 'free' | 'premium'
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 2. Meetings Table
+CREATE TABLE IF NOT EXISTS meetings (
+    id SERIAL PRIMARY KEY,
+    meeting_id VARCHAR(50) NOT NULL UNIQUE,   -- Formatted room code: xxx-xxx-xxx
+    title VARCHAR(255) DEFAULT 'Instant Meeting',
+    host_id VARCHAR(255) NOT NULL REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
+    status VARCHAR(20) DEFAULT 'active',      -- 'active' | 'ended'
+    ended_at TIMESTAMPTZ,
+    transcript TEXT,                          -- Formatted speech transcript
+    summary TEXT,                             -- Structured Gemini markdown summary
+    recording_status VARCHAR(20) DEFAULT 'none', -- 'none' | 'processing' | 'done' | 'failed'
+    recording_url TEXT,                       -- Object storage URL (planned)
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 3. Meeting Participants Table
+CREATE TABLE IF NOT EXISTS meeting_participants (
+    id SERIAL PRIMARY KEY,
+    meeting_id INT NOT NULL REFERENCES meetings(id) ON DELETE CASCADE ON UPDATE CASCADE,
+    user_id VARCHAR(255) REFERENCES users(id) ON DELETE SET NULL ON UPDATE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    joined_at TIMESTAMPTZ DEFAULT NOW(),
+    left_at TIMESTAMPTZ
+);
+
+-- 4. Meeting Messages Table
+CREATE TABLE IF NOT EXISTS meeting_messages (
+    id SERIAL PRIMARY KEY,
+    meeting_id INT NOT NULL REFERENCES meetings(id) ON DELETE CASCADE ON UPDATE CASCADE,
+    sender_id VARCHAR(255) REFERENCES users(id) ON DELETE SET NULL ON UPDATE CASCADE,
+    sender_name VARCHAR(255) NOT NULL,
+    text TEXT NOT NULL,
+    timestamp TIMESTAMPTZ DEFAULT NOW()
+);
 ```
 
 ---
 
-### 5.4 Sending a Chat Message
+## 7. REST API Endpoints
 
-```
-User types in ChatPanel → sendMessage(text)
-  → useChat: emit "send-message" { roomId, message }
-  → socket.js:
-      • INSERT INTO meeting_messages (persisted to DB)
-      • io.in(roomId).emit("receive-message") → ALL participants
-  → useChat receive-message handler:
-      • Appends to messages[]
-      • If chat panel is closed → increments unreadCount badge
-```
+All meeting routes require authentication (`Authorization: Bearer <clerk_token>`).
 
----
-
-### 5.5 Toggling Mic / Camera
-
-```
-ControlBar → toggleAudio() / toggleVideo()
-  → useWebRTC:
-      • Enables/disables localStream audio/video tracks
-      • emit "toggle-audio" / "toggle-video" { roomId, audioEnabled/videoEnabled }
-  → socket.js:
-      • Updates participant state in rooms Map
-      • Broadcasts "user-toggled-audio" / "user-toggled-video" to room
-  → Other participants:
-      • Update their remote peer's mute/camera state in UI
-```
-
----
-
-### 5.6 Ending a Meeting (Host)
-
-```
-ControlBar → "End Meeting" button
-  → MeetingRoom.handleEndMeeting()
-  → useWebRTC.endMeeting() → emit "end-meeting" { roomId }
-  → socket.js:
-      • UPDATE meetings SET status = 'ended', ended_at = NOW()
-      • Broadcast "meeting-ended" to all participants
-      • rooms.delete(roomId) — clears in-memory state
-  → All participants:
-      • Navigate to /dashboard on "meeting-ended" event
-```
-
----
-
-### 5.7 Viewing Session History
-
-```
-Sessions.jsx mounts
-  → GET /api/meetings/sessions (authenticated)
-  → Returns all sessions where user is host OR participant
-  → Renders SessionCard list
-  → User clicks a card → GET /api/meetings/sessions/:id
-  → SessionDetailModal opens with two tabs:
-      • Participants tab (SessionParticipantsTab.jsx)
-      • Chat transcript tab (SessionChatTab.jsx)
-```
-
----
-
-## 6. Authentication (Clerk)
-
-### How It Works
-
-| Step | Location | What Happens |
-|---|---|---|
-| 1 | `main.jsx` | App wrapped in `<ClerkProvider publishableKey={...}>` |
-| 2 | `ProtectedRoute.jsx` | Uses Clerk `<SignedIn>/<SignedOut>` to guard private routes |
-| 3 | `api.js` | Axios interceptor auto-attaches Clerk JWT as `Bearer` token |
-| 4 | `auth.js` (server) | `getAuth(req)` from `@clerk/express` verifies the JWT |
-
-### Plan Sync (Every API Request)
-
-On every protected API call, `auth.js` middleware syncs the user's plan:
-
-```js
-const userActivePlan = auth.has({ plan: "premium" }) ? "premium" : "free";
-// If DB plan doesn't match Clerk → update DB
-if (userActivePlan !== userPlan) {
-    await sql`UPDATE users SET plan = ${userActivePlan} WHERE id = ${userId}`;
-}
-```
-
-### Clerk Webhook (`webhookController.js`)
-
-Clerk fires webhooks to `POST /api/clerk` for user lifecycle events:
-
-| Event | Action |
-|---|---|
-| `user.created` | `INSERT INTO users ... ON CONFLICT DO UPDATE` |
-| `user.updated` | Update name / email / image |
-| `user.deleted` | `DELETE FROM users` (cascades to all meetings/participants/messages) |
-
----
-
-## 7. Database Schema
-
-### `users`
-Synced from Clerk via webhooks. Primary key is Clerk's `userId` string.
-
-| Column | Type | Notes |
-|---|---|---|
-| `id` | VARCHAR(255) PK | Clerk userId (e.g. `user_2xAbc...`) |
-| `name` | VARCHAR(255) | Full name |
-| `email` | VARCHAR(255) UNIQUE | Primary email |
-| `image` | VARCHAR(500) | Avatar URL from Clerk |
-| `plan` | VARCHAR(20) | `'free'` or `'premium'` — default `'free'` |
-| `created_at` | TIMESTAMPTZ | Auto |
-| `updated_at` | TIMESTAMPTZ | Updated by auth middleware & webhook |
-
-### `meetings`
-
-| Column | Type | Notes |
-|---|---|---|
-| `id` | SERIAL PK | Internal FK used by participants/messages |
-| `meeting_id` | VARCHAR(50) UNIQUE | Public shareable slug (`abc-def-ghi`) |
-| `title` | VARCHAR(255) | Default: `'Instant Meeting'` |
-| `host_id` | VARCHAR(255) FK → users.id | `ON DELETE CASCADE` |
-| `status` | VARCHAR(20) | `'active'` or `'ended'` |
-| `ended_at` | TIMESTAMPTZ | NULL until host ends meeting |
-| `created_at` | TIMESTAMPTZ | Auto |
-
-### `meeting_participants`
-
-| Column | Type | Notes |
-|---|---|---|
-| `id` | SERIAL PK | |
-| `meeting_id` | INT FK → meetings.id | `ON DELETE CASCADE` |
-| `user_id` | VARCHAR FK → users.id | `ON DELETE SET NULL` — nullable (anonymous guests) |
-| `name` | VARCHAR(255) | Always stored even if user_id is null |
-| `joined_at` | TIMESTAMPTZ | Auto |
-| `left_at` | TIMESTAMPTZ | Currently not populated (future feature) |
-
-### `meeting_messages`
-
-| Column | Type | Notes |
-|---|---|---|
-| `id` | SERIAL PK | |
-| `meeting_id` | INT FK → meetings.id | `ON DELETE CASCADE` |
-| `sender_id` | VARCHAR FK → users.id | `ON DELETE SET NULL` — nullable |
-| `sender_name` | VARCHAR(255) | Always stored |
-| `text` | TEXT | Message content |
-| `timestamp` | TIMESTAMPTZ | Auto |
-
-### Cascade Behaviour
-
-| Delete | Effect |
-|---|---|
-| A **user** | Their hosted meetings deleted → participants & messages in those meetings deleted |
-| A **meeting** | All its participants and messages deleted |
-| A **participant user** | `user_id` set to NULL — record kept for history |
-
----
-
-## 8. REST API Routes
-
-All routes are prefixed `/api/meetings` and protected by `protect` middleware (except webhook).
-
-| Method | Path | Controller | Description |
+| Method | Endpoint | Handler | Description |
 |---|---|---|---|
-| `POST` | `/api/meetings` | `createMeeting` | Create a new meeting |
-| `GET` | `/api/meetings/stats` | `getMeetingStats` | Get user's plan + monthly usage |
-| `GET` | `/api/meetings/sessions` | `getUserSessions` | All sessions (hosted + joined) |
-| `GET` | `/api/meetings/sessions/:id` | `getSessionDetails` | Single session full detail |
-| `GET` | `/api/meetings/:meetingId` | `getMeeting` | Verify meeting exists & active |
-| `POST` | `/api/clerk` | `handleClerkWebhook` | Clerk webhook handler (public, no auth) |
-
-> **Note:** `/stats` and `/sessions` are registered before `/:meetingId` to prevent them being treated as a meetingId parameter.
-
----
-
-## 9. Socket.IO Signaling Events
-
-The socket server (`server/socket.js`) tracks `currentRoomId` and `currentUser` per socket in closure scope. In-memory room state:
-
-```js
-const rooms = new Map();  // roomId → Map<socketId, participantObject>
-```
-
-### Client → Server Events
-
-| Event | Payload | Description |
-|---|---|---|
-| `join-room` | `{ roomId, user, audioEnabled, videoEnabled }` | Join a meeting room |
-| `offer` | `{ targetSocketId, callerSocketId, sdp }` | WebRTC offer to a specific peer |
-| `answer` | `{ targetSocketId, responderSocketId, sdp }` | WebRTC answer back to caller |
-| `ice-candidate` | `{ targetSocketId, senderSocketId, candidate }` | ICE candidate exchange |
-| `toggle-audio` | `{ roomId, audioEnabled }` | Notify others of mic state change |
-| `toggle-video` | `{ roomId, videoEnabled }` | Notify others of camera state change |
-| `send-message` | `{ roomId, message }` | Send a chat message |
-| `end-meeting` | `{ roomId }` | Host ends meeting for all |
-
-### Server → Client Events
-
-| Event | Payload | Description |
-|---|---|---|
-| `all-users` | `existingUsers[]` | Sent to newcomer: list of current room participants |
-| `user-joined` | `newUser` | Broadcast: a new user arrived |
-| `offer` | `{ callerSocketId, sdp, callerUser }` | Relayed WebRTC offer |
-| `answer` | `{ responderSocketId, sdp }` | Relayed WebRTC answer |
-| `ice-candidate` | `{ senderSocketId, candidate }` | Relayed ICE candidate |
-| `user-toggled-audio` | `{ socketId, audioEnabled }` | Broadcast mic state change |
-| `user-toggled-video` | `{ socketId, videoEnabled }` | Broadcast camera state change |
-| `receive-message` | `{ ...message, senderSocketId }` | Broadcast chat message to all |
-| `user-left` | `{ socketId, user }` | Broadcast on disconnect |
-| `meeting-ended` | `{ message }` | Sent when host ends meeting / meeting not found |
+| `POST` | `/api/meetings` | `createMeeting` | Creates new meeting, verifies monthly limit (30 for free plan) |
+| `GET` | `/api/meetings/stats` | `getMeetingStats` | Returns plan, monthly count, limit, and max participant allowance |
+| `GET` | `/api/meetings/sessions` | `getUserSessions` | Retrieves meeting history where user was host or participant |
+| `GET` | `/api/meetings/sessions/:id` | `getSessionDetails`| Returns full details: participants, chat messages, transcript, summary |
+| `POST` | `/api/meetings/:meetingId/recording` | `processRecording` | Uploads host mixed audio file (Multer), starts AI transcription & summary |
+| `GET` | `/api/meetings/:meetingId` | `getMeeting` | Validates active meeting status and host details before entering room |
+| `POST` | `/api/clerk` | `handleClerkWebhook`| Webhook listener for `user.created`, `user.updated`, `user.deleted` |
 
 ---
 
-## 10. WebRTC Flow
+## 8. Socket.IO Signaling & Real-Time Events
 
-### ICE / STUN Config
+The signaling server tracks active rooms in an in-memory `Map<roomId, Map<socketId, participant>>`.
 
-```js
-const ICE_SERVERS = {
-    iceServers: [
-        { urls: "stun:stun.l.google.com:19302" },
-        { urls: "stun:stun1.l.google.com:19302" },
-        { urls: "stun:stun2.l.google.com:19302" },
-    ],
-};
-```
-
-> No TURN server configured — connections may fail on restrictive networks (corporate firewalls, symmetric NAT).
-
-### Signaling Sequence Diagram
-
-```
-NewUser                Server              ExistingUser
-   │                     │                      │
-   │── join-room ────────►│                      │
-   │◄── all-users ────────│                      │
-   │                      │── user-joined ───────►│
-   │                      │                      │
-   │── offer ─────────────►│                      │
-   │                      │── offer ─────────────►│
-   │                      │◄── answer ────────────│
-   │◄── answer ───────────│                      │
-   │                      │                      │
-   │◄──── ICE candidates exchanged (both ways) ──►│
-   │                      │                      │
-   │◄══════════ P2P WebRTC stream established ════►│
-```
-
-### Media Acquisition (`useWebRTC.js`)
-
-```js
-// Try video + audio first; fall back to audio-only
-try {
-  stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-} catch {
-  stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-}
-```
-
----
-
-## 11. Client Pages
-
-| Page | Route | File | Description |
+| Event Name | Direction | Payload | Description |
 |---|---|---|---|
-| Login | `/login` | `pages/Login.jsx` | Clerk-powered login UI |
-| Register | `/register` | `pages/Login.jsx` | Clerk-powered register UI (same component, different mode) |
-| Dashboard | `/dashboard` | `pages/Dashboard.jsx` | Create/join meeting; live clock; plan stats card |
-| Meeting Room | `/meeting/:meetingId` | `pages/MeetingRoom.jsx` | Full real-time video call interface |
-| Sessions | `/sessions` | `pages/Sessions.jsx` | Past meeting history with participant & chat logs |
-| Pricing | `/pricing` | `pages/Pricing.jsx` | Plan comparison / upgrade page |
-
-**Route Config (`App.jsx`):**
-- `/login` and `/register` — public
-- All others — wrapped in `<ProtectedRoute>` (Clerk auth guard)
-- `Dashboard`, `Sessions`, `Pricing` — also wrapped in `<Protectedlayout>` (adds Navbar + Footer)
-- `*` — redirects to `/dashboard`
-
----
-
-## 12. Client Components
-
-### Meeting Room Components
-
-| Component | File | Responsibility |
-|---|---|---|
-| VideoGrid | `components/meeting/VideoGrid.jsx` | Responsive CSS grid layout for all participant video tiles |
-| VideoTile | `components/meeting/VideoTile.jsx` | Renders a single participant's `<video>` stream + name badge; mute/camera indicators |
-| ControlBar | `components/meeting/ControlBar.jsx` | Bottom toolbar: toggle mic, toggle camera, open chat, participants list, leave/end meeting |
-| ChatPanel | `components/meeting/ChatPanel.jsx` | Sliding right drawer for in-meeting text chat; shows unread badge when closed |
-| ParticipantList | `components/meeting/ParticipantList.jsx` | Sliding right drawer listing all current room participants |
-
-### Session History Components
-
-| Component | File | Responsibility |
-|---|---|---|
-| SessionCard | `components/sessions/SessionCard.jsx` | Summary card: title, date, participant count, status badge (active/ended) |
-| SessionDetailModal | `components/sessions/SessionDetailModal.jsx` | Full-screen modal with tabbed view (Participants + Chat) |
-| SessionParticipantsTab | `components/sessions/SessionParticipantsTab.jsx` | Table of participants with join timestamps |
-| SessionChatTab | `components/sessions/SessionChatTab.jsx` | Full chat transcript with timestamps |
-| EmptySessions | `components/sessions/EmptySessions.jsx` | Empty state illustration when no sessions exist yet |
-
-### Shared / Layout Components
-
-| Component | File | Responsibility |
-|---|---|---|
-| ProtectedRoute | `components/ProtectedRoute.jsx` | Guards private routes; redirects unauthenticated users to `/login` |
-| Protectedlayout | `components/Protectedlayout.jsx` | Wraps dashboard/sessions/pricing with `<Navbar>` and `<Footer>` |
-| Navbar | `components/Navbar.jsx` | Top navigation bar with app logo, links, user avatar, and sign-out |
-| Footer | `components/Footer.jsx` | Bottom footer bar |
-| Loader | `components/Loader.jsx` | Full-screen centered spinner with optional label text |
+| `join-room` | Client → Server | `{ roomId, user, audioEnabled, videoEnabled }` | Verifies room capacity, adds socket to room, persists to DB, emits `all-users` to newcomer and `user-joined` to room |
+| `all-users` | Server → Client | `[ { socketId, userId, userName, ... } ]` | Sends list of existing peers to the new participant |
+| `user-joined` | Server → Client | `{ socketId, userId, userName, ... }` | Broadcasts to room that a new participant has joined |
+| `offer` | Client → Server | `{ targetSocketId, callerSocketId, offer, callerUser }` | Relays WebRTC SDP offer to target peer |
+| `answer` | Client → Server | `{ targetSocketId, answer }` | Relays WebRTC SDP answer back to caller |
+| `ice-candidate` | Client → Server | `{ targetSocketId, candidate }` | Relays ICE candidate for NAT traversal |
+| `toggle-audio` | Client → Server | `{ roomId, audioEnabled }` | Broadcasts `user-toggled-audio` to room |
+| `toggle-video` | Client → Server | `{ roomId, videoEnabled }` | Broadcasts `user-toggled-video` to room |
+| `send-message` | Client → Server | `{ roomId, message }` | Persists message into `meeting_messages` table and broadcasts `receive-message` |
+| `mute-all` | Client → Server | `{ roomId }` | Broadcasts `muted-by-host` to all participants (excluding host) |
+| `muted-by-host`| Server → Client | *(None)* | Instructs participant clients to disable their mic track |
+| `end-meeting` | Client → Server | `{ roomId }` | Updates DB status to `'ended'`, broadcasts `meeting-ended`, cleans room state |
+| `meeting-ended`| Server → Client | `{ message }` | Forces all clients to disconnect and redirect to Dashboard |
+| `disconnect` | Internal | *(Socket disconnect)* | Cleans up room participant, broadcasts `user-left` to peers |
 
 ---
 
-## 13. Custom Hooks
+## 9. WebRTC Audio/Video P2P Engine
 
-### `useWebRTC(roomId, user, onMeetingEnded, enabled)`
-**File:** [`client/src/hooks/useWebRTC.js`](file:///D:/mini%20project%205th%20sem/Meetup%20-%20Full%20Stack%20Video%20Calling%20App%20(1)/meetup/client/src/hooks/useWebRTC.js)
+Managed inside `client/src/hooks/useWebRTC.js`:
 
-The core real-time hook managing:
-
-| Responsibility | Detail |
-|---|---|
-| Local media | Acquires camera/mic via `getUserMedia`; falls back to audio-only |
-| Socket lifecycle | Connects on mount, disconnects on unmount |
-| Peer connections | Creates and stores `RTCPeerConnection` objects in a `useRef` Map (keyed by socketId) |
-| Signaling listeners | Handles `offer`, `answer`, `ice-candidate`, `user-left`, `meeting-ended` events |
-| Media toggle | Enables/disables local stream tracks + broadcasts state to room |
-| End meeting | Emits `end-meeting` socket event (host only) |
-
-**Returns:** `{ localStream, remoteUsers, audioEnabled, videoEnabled, toggleAudio, toggleVideo, endMeeting }`
-
-> **`enabled` param:** WebRTC only starts AFTER the meeting validity REST check succeeds. Prevents camera access on invalid/ended rooms.
-
----
-
-### `useChat(roomId, user)`
-**File:** [`client/src/hooks/useChat.js`](file:///D:/mini%20project%205th%20sem/Meetup%20-%20Full%20Stack%20Video%20Calling%20App%20(1)/meetup/client/src/hooks/useChat.js)
-
-Manages in-meeting chat state:
-
-| Responsibility | Detail |
-|---|---|
-| Receive messages | Listens to `receive-message` socket events, appends to `messages[]` |
-| Send messages | Emits `send-message` via socket |
-| Unread count | Increments when chat panel is closed and a message arrives |
-| Panel toggle | `isChatOpen` state; resets unread count when panel is opened |
-
-**Returns:** `{ messages, sendMessage, unreadCount, isChatOpen, toggleChat }`
+1. **Local Media Acquisition**:
+   Calls `navigator.mediaDevices.getUserMedia({ video: true, audio: true })`. If camera or microphone is unavailable, cleanly falls back to audio-only.
+2. **Mesh Topology**:
+   Each participant maintains a direct `RTCPeerConnection` with every other participant in the room.
+3. **STUN Configuration**:
+   ```javascript
+   iceServers: [
+     { urls: "stun:stun.l.google.com:19302" },
+     { urls: "stun:stun1.l.google.com:19302" }
+   ]
+   ```
+4. **Signaling Flow**:
+   - New participant receives `all-users` and initiates an `offer` to each existing peer.
+   - Target peer receives `offer`, sets remote description, generates `answer`, and sends it back.
+   - Both sides exchange ICE candidates as discovered.
+   - Remote audio/video tracks are attached to the peer's `<VideoTile>` element.
 
 ---
 
-## 14. Plan Limits & Business Logic
+## 10. AI Audio Recording, Multilingual Transcription & Gemini Summary Engine
 
-### Free Plan
-- **30 meetings** per calendar month (enforced at REST API creation time)
-- **10 participants** max per room (enforced at Socket `join-room` time)
+Managed via `useRecording.js` (client) and `recordingController.js` (server).
 
-### Premium Plan
-- **Unlimited** meetings per month
-- **100 participants** max per room
+```mermaid
+sequenceDiagram
+    participant Host as Host Browser
+    participant API as Express API
+    participant Neon as Neon DB
+    participant AAI as AssemblyAI
+    participant Gem as Google Gemini 1.5
 
-### Enforcement Points
+    Host->>Host: Web Audio API mixes Local + Remote audio
+    Host->>API: POST /api/meetings/:id/recording (multipart/form-data)
+    API->>Neon: UPDATE meetings SET recording_status = 'processing'
+    API-->>Host: 202 Accepted (Host navigates immediately)
+    
+    API->>AAI: client.transcripts.transcribe(audio, language_detection: true)
+    AAI-->>API: Multilingual Transcript with Speaker Labels
+    
+    API->>Gem: model.generateContent(prompt + transcript)
+    Gem-->>API: Structured Markdown Executive Summary
+    
+    API->>Neon: UPDATE meetings SET transcript, summary, recording_status = 'done'
+    API->>API: fs.unlinkSync(audioFile) (temporary disk file deleted)
+```
 
-| Point | Where | How |
+---
+
+## 11. Client Pages & Routing
+
+All routes declared in `client/src/App.jsx`:
+
+| Route Path | Guard | Page Component | Purpose |
+|---|---|---|---|
+| `/login` | Public | `Login.jsx` | Clerk SignIn component with `login_bg.png` |
+| `/register` | Public | `Login.jsx` | Clerk SignUp component |
+| `/dashboard` | Protected | `Dashboard.jsx` | Create meeting, enter code, user stats, copy invite modal |
+| `/sessions` | Protected | `Sessions.jsx` | Browse meeting history, open session details & summaries |
+| `/pricing` | Protected | `Pricing.jsx` | Upgrade to Premium for 100 participants & unlimited meetings |
+| `/meeting/:meetingId` | Protected | `MeetingRoom.jsx` | Main video calling interface with WebRTC grid, chat, invite card |
+| `*` | Catch-all | Navigate | Redirects to `/dashboard` |
+
+---
+
+## 12. Client Components Breakdown
+
+### Meeting Room Components (`components/meeting/`)
+- **`VideoGrid.jsx`**: Dynamically calculates CSS grid layout from 1 to 100 participants.
+- **`VideoTile.jsx`**: Displays participant video stream or animated avatar placeholder with mute icon.
+- **`ControlBar.jsx`**: Floating footer with mic toggle, camera toggle, chat toggle (with unread badge), participant list toggle, Mute-All button (host), End Meeting button (host), and Leave button (guests).
+- **`MeetingInviteModal.jsx`**: Floating card with 1-click Copy Link, Copy ID, Share on WhatsApp, and "Waiting for others to join..." animated indicator.
+- **`ChatPanel.jsx`**: Slide-out drawer with auto-scrolling message list and text submission form.
+- **`ParticipantList.jsx`**: Slide-out drawer displaying all connected participants, host badge, and audio/video status.
+
+### Sessions History Components (`components/sessions/`)
+- **`SessionCard.jsx`**: Overview card showing date, meeting ID, status badge, participant count, message count, and `AI Summary` / `Processing AI` badge.
+- **`SessionDetailModal.jsx`**: Modal dialog with 4 interactive tabs:
+  - **`SummaryTab.jsx`**: Renders executive overview, key topics, decisions, and action items with 1-click copy button.
+  - **`TranscriptTab.jsx`**: Displays full speaker-diarized transcript with 1-click copy button.
+  - **`SessionChatTab.jsx`**: Historical log of all in-meeting chat messages sent during the call.
+  - **`SessionParticipantsTab.jsx`**: Roster of attendees with join timestamps.
+- **`EmptySessions.jsx`**: Zero-state illustration when no meetings exist yet.
+
+---
+
+## 13. Custom React Hooks
+
+### 1. `useWebRTC(roomId, user, onMeetingEnded, enabled)`
+- Connects to Socket.IO signaling server.
+- Acquires local camera & microphone stream.
+- Maintains `peerConnections` Map for all remote participants.
+- Emits and listens to `join-room`, `offer`, `answer`, `ice-candidate`, `user-joined`, `user-left`.
+- Exposes `muteAll()` to broadcast mute commands across the room.
+- Listens for `muted-by-host` and mutes local microphone track automatically.
+
+### 2. `useRecording(roomId, isHost)`
+- Mixes local microphone audio track + all remote peer audio tracks into a unified `MediaStreamDestination` using the Web Audio API.
+- Records continuous Opus audio chunks via `MediaRecorder`.
+- On meeting end, packages chunks into a WebM Blob and uploads via `multipart/form-data` to `/api/meetings/:meetingId/recording`.
+- Ignores recordings smaller than 3KB to prevent empty uploads.
+
+### 3. `useChat(roomId, user)`
+- Listens for real-time `receive-message` events.
+- Emits `send-message` socket events.
+- Tracks `unreadCount` badge when the chat panel drawer is closed.
+
+---
+
+## 14. Plan Limits & Business Rules
+
+| Feature | Free Plan | Premium Plan |
 |---|---|---|
-| Meeting creation limit | `meetingController.js → createMeeting()` | `COUNT` meetings in current month → `403` if ≥ 30 (free only) |
-| Participant capacity | `socket.js → join-room handler` | `rooms.get(roomId).size >= maxParticipants` → emit `meeting-ended` with error message |
-| Plan sync | `middleware/auth.js` | On every API request, compare Clerk plan vs DB plan → `UPDATE` if mismatch |
-
-### Meeting ID Generation
-
-- Format: `[a-z]{3}-[a-z]{3}-[a-z]{3}` (e.g., `abc-def-ghi`)
-- Generated in `meetingController.js` with three random 3-letter lowercase segments
-- Uniqueness guaranteed via DB lookup loop before insert
-- Client-side validation regex: `/^[a-z]{3}(?:-[a-z]{3}){2}$/`
+| **Monthly Meetings** | 30 meetings / calendar month | Unlimited |
+| **Max Participants / Room** | 10 participants | 100 participants |
+| **Enforcement Point (Meetings)** | `meetingController.js` (`createMeeting`) checks `COUNT(*)` in current month | Bypassed |
+| **Enforcement Point (Capacity)** | `socket.js` (`join-room`) checks `roomParticipants.size >= 10` | Bypassed up to 100 |
+| **AI Transcription & Summary** | Included (AssemblyAI + Gemini) | Included |
 
 ---
 
 ## 15. Environment Variables
 
-### `server/.env`
-
+### Server (`server/.env`)
 ```env
-ORIGINS="http://localhost:5173,http://localhost:3000"
-DATABASE_URL='postgresql://<user>:<pass>@<host>-pooler.<region>.aws.neon.tech/neondb?sslmode=require&channel_binding=require'
-CLERK_PUBLISHABLE_KEY=pk_test_...
-CLERK_SECRET_KEY=sk_test_...
-CLERK_WEBHOOK_SIGNING_SECRET=whsec_...
+ORIGINS="https://meetup-frontend-nf2r.onrender.com,https://meetup-deploy-frontend.onrender.com,http://localhost:5173"
+DATABASE_URL="postgresql://<user>:<password>@<neon-host>/neondb?sslmode=require"
+CLERK_PUBLISHABLE_KEY="pk_test_..."
+CLERK_SECRET_KEY="sk_test_..."
+CLERK_WEBHOOK_SIGNING_SECRET="whsec_..."
+ASSEMBLYAI_API_KEY="5e6317c1e64644ba848cb2ecdaf4ebb6"
+GEMINI_API_KEY="AIzaSy..."
 PORT=3000
 ```
 
-### `client/.env`
-
+### Client (`client/.env`)
 ```env
-VITE_BASE_URL="http://localhost:3000"
-VITE_CLERK_PUBLISHABLE_KEY=pk_test_...
+VITE_BASE_URL="https://meetup-backend-fkrm.onrender.com"
+VITE_CLERK_PUBLISHABLE_KEY="pk_test_..."
 ```
 
-> `VITE_` prefix is required for Vite to expose env vars to the browser bundle.
-
 ---
 
-## 16. Known Issues & Notes
+## 16. Deployment Architecture
 
-| Issue | Detail |
-|---|---|
-| ⚠️ No TURN server | WebRTC may fail on restrictive networks. Only Google STUN servers are configured. For production, add TURN (e.g., Coturn or Metered.ca). |
-| 🐛 `end-meeting` socket bug | In `socket.js` line 176, `io.on(roomId)` should be `io.in(roomId)` — the `meeting-ended` event is NOT broadcast to all participants when host clicks "End Meeting" via socket. |
-| ⏱️ `left_at` not recorded | `meeting_participants.left_at` column exists but is never written — always NULL in current code. |
-| 🧪 Dummy data in MeetingRoom | `dummyMeetingDetails.title` and `dummyUser.id` are still referenced in `MeetingRoom.jsx` — should use the real `meeting` state. |
-| 📦 Single-server Socket.IO | The `rooms` Map lives in server memory. Not horizontally scalable without Redis adapter. |
-| 🔒 Anonymous guests | `user_id` in `meeting_participants` is nullable — anonymous users are stored with just a `name`. |
-
----
-
-*Generated by project indexing — Meetup Full Stack Video Calling App*
+- **Main Git Repository**: [github.com/suraj-6699br/Meetup](https://github.com/suraj-6699br/Meetup)
+- **Deploy Git Repository**: [github.com/suraj-6699br/Meetup-deploy](https://github.com/suraj-6699br/Meetup-deploy)
+- **Render Web Service (Backend)**: Node.js service running `server/server.js` with auto-deploy from `Meetup-deploy.git`.
+- **Render Static Site (Frontend)**: Vite SPA build (`dist` directory) with rewrite rule `/*` -> `/index.html`.

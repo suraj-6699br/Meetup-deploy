@@ -670,4 +670,22 @@ ASSEMBLYAI_API_KEY=your_key_here
 
 ---
 
+# 🔴 Feature 3: Host-Controlled Recording Button + Neon Object Storage + Audio Download
+
+> **Status:** Planned & Ready for Implementation
+> **User Requirement:** Host controls recording on/off via button; audio is stored in Neon Object Storage; Sessions view displays interactive audio player with Download Audio option.
+
+## 📋 Progress Tracker
+
+| Step | Task | Status |
+|---|---|---|
+| 1 | Add `recording_url TEXT` column to `meetings` table in `server/config/db.js` | ⏳ Pending storage prompt |
+| 2 | Add manual `startRecording()` / `stopRecording()` / timer in `useRecording.js` | ⏳ Ready |
+| 3 | Add Host Record Button (`⏺ Record` / `🔴 REC 00:00`) in `ControlBar.jsx` | ⏳ Ready |
+| 4 | Stream audio to Neon Object Storage in `recordingController.js` | ⏳ Waiting for storage prompt |
+| 5 | Return `recordingUrl` in `meetingController.js` (`getUserSessions` / `getSessionDetails`) | ⏳ Ready |
+| 6 | Add `<audio controls>` player and `Download Audio` button in `SessionDetailModal.jsx` | ⏳ Ready |
+
+---
+
 *Feature plan written for Meetup Full Stack Video Calling App*
